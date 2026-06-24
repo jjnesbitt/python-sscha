@@ -62,6 +62,18 @@ RUN echo "conda activate sscha" >> /root/.bashrc
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
+# Install free energy dependencies
+RUN conda run -n sscha pip install --no-cache-dir nequip openequivariance
+
+RUN mkdir -p /opt/nequip
+
+# Model is compiled on first launch (requires GPU at runtime, not build time)
+ENV NEQUIP_MODEL_PATH=/opt/nequip/NequIP-OAM-XL.nequip.pt2
+
+COPY docker/entrypoint-freeenergy.sh /usr/local/bin/entrypoint-freeenergy.sh
+RUN chmod +x /usr/local/bin/entrypoint-freeenergy.sh
+
 WORKDIR /workspace
 
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT ["/usr/local/bin/entrypoint-freeenergy.sh"]
+CMD ["/bin/bash"]
