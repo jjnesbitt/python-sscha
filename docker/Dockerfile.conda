@@ -34,15 +34,15 @@ RUN PCDIR=/opt/conda/envs/sscha/lib/pkgconfig && \
     printf 'Name: blas\nDescription: BLAS\nVersion: 3.9\nLibs: -L%s -lopenblas\nCflags:\n' "$LIBDIR" \
         > "$PCDIR/blas.pc"
 
-# Install PyTorch with CUDA 12.4 support
+# Install PyTorch with CUDA 12.6 support
 RUN conda run -n sscha pip install --no-cache-dir \
     torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 
 # Install remaining pip dependencies
 RUN conda run -n sscha pip install --no-cache-dir ase julia mpi4py
 
-# Install SSCHA packages
-RUN conda run -n sscha pip install --no-cache-dir cellconstructor python-sscha tdscha
+# Install third-party SSCHA-adjacent packages
+RUN conda run -n sscha pip install --no-cache-dir cellconstructor tdscha nequip openequivariance click
 
 # Pre-install Julia packages (PyCall + SSCHA deps) as root so sscha-user
 # doesn't hit permission errors on the conda-owned Julia depot at runtime
@@ -62,18 +62,26 @@ RUN echo "conda activate sscha" >> /root/.bashrc
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-# Install free energy dependencies
-RUN conda run -n sscha pip install --no-cache-dir nequip openequivariance
-
+# NequIP model location (override via env var or --model flag)
+ENV NEQUIP_MODEL_PATH=/opt/nequip/NequIP-OAM-XL.nequip.pt2
 RUN mkdir -p /opt/nequip
 
-# Model is compiled on first launch (requires GPU at runtime, not build time)
-ENV NEQUIP_MODEL_PATH=/opt/nequip/NequIP-OAM-XL.nequip.pt2
+# ---------------------------------------------------------------------------
+# Local source installs — kept last so editing source doesn't bust the cache
+# for the heavy dependency layers above.
+# ---------------------------------------------------------------------------
 
-COPY docker/entrypoint-freeenergy.sh /usr/local/bin/entrypoint-freeenergy.sh
-RUN chmod +x /usr/local/bin/entrypoint-freeenergy.sh
+# Install the local python-sscha build (C extensions via meson-python)
+COPY . /build/
+RUN pip install --no-cache-dir /build/
+
+# Expose pdh_kitware as an importable package and register the CLI entry point
+ENV PYTHONPATH="/build:${PYTHONPATH}"
+RUN printf '#!/bin/bash\nexec python -m pdh_kitware.cli "$@"\n' \
+        > /usr/local/bin/pdh-sscha \
+    && chmod +x /usr/local/bin/pdh-sscha
 
 WORKDIR /workspace
 
-ENTRYPOINT ["/usr/local/bin/entrypoint-freeenergy.sh"]
-CMD ["/bin/bash"]
+ENTRYPOINT ["pdh-sscha"]
+CMD ["--help"]

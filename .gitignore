@@ -1,3 +1,7 @@
+# Docker runtime data (CIF files, dyn files, compiled NequIP model)
+docker/data/
+docker/nequip/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
