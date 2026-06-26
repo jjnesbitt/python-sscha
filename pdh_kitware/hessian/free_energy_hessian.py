@@ -23,19 +23,49 @@ def _detect_last_population(data_dir):
     return max(pop_ids)
 
 
-def free_energy_hessian(
-    data_dir, final_dyn_prefix, output_prefix, pop_id=None, nqirr=None
-):
+def _detect_final_dyn_prefix(sscha_dir):
+    """Locate the converged dyn prefix in a run-sscha output directory.
+
+    Prefers an explicit 'final_dyn' saved by our CLI wrapper.  Falls back to
+    the last 'dyn_pop{N}_' written by SSCHA itself, which is what older runs
+    (or runs not started through this CLI) will have.
+    """
+    sscha_dir = Path(sscha_dir)
+    if list(sscha_dir.glob("final_dyn[0-9]*")):
+        return sscha_dir / "final_dyn"
+
+    pop_ids = set()
+    for f in sscha_dir.glob("dyn_pop*_[0-9]*"):
+        m = re.match(r"dyn_pop(\d+)_", f.name)
+        if m:
+            pop_ids.add(int(m.group(1)))
+    if not pop_ids:
+        raise FileNotFoundError(
+            f"No final_dyn* or dyn_pop*_* files found in {sscha_dir}"
+        )
+    last = max(pop_ids)
+    print(f"No final_dyn found; using last SSCHA population dyn_pop{last}_")
+    return sscha_dir / f"dyn_pop{last}_"
+
+
+def free_energy_hessian(sscha_dir, output_prefix, pop_id=None, nqirr=None, final_dyn_prefix=None):
     """Compute the free-energy Hessian from a completed SSCHA run.
 
-    data_dir: directory containing the saved ensemble (dyn_gen_pop* files).
-    final_dyn_prefix: prefix for the final dynamical matrix files from SSCHA.
+    sscha_dir: output directory produced by run-sscha.  Expected to contain
+        dyn_pop*_* (or final_dyn*) files and a data/ subdirectory with the
+        saved ensemble.
     output_prefix: prefix for the output hessian dyn files.
-    pop_id: population iteration to load; auto-detects the last one if None.
+    pop_id: population to load from the ensemble; auto-detects the last one.
     nqirr: number of irreducible q-points; auto-detected from files if None.
+    final_dyn_prefix: override the auto-detected final dyn prefix.
     """
-    data_dir = Path(data_dir)
-    final_dyn_prefix = Path(final_dyn_prefix)
+    sscha_dir = Path(sscha_dir)
+    data_dir = sscha_dir / "data"
+
+    if final_dyn_prefix is None:
+        final_dyn_prefix = _detect_final_dyn_prefix(sscha_dir)
+    else:
+        final_dyn_prefix = Path(final_dyn_prefix)
 
     if pop_id is None:
         pop_id = _detect_last_population(data_dir)

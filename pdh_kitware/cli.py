@@ -179,8 +179,7 @@ def cmd_run_sscha(dyn_prefix, output_dir, nqirr, n_configs, max_pop, model_path)
 
 
 @main.command("free-energy-hessian")
-@click.argument("data_dir", type=click.Path(exists=True, path_type=Path))
-@click.argument("final_dyn_prefix", type=click.Path(path_type=Path))
+@click.argument("sscha_dir", type=click.Path(exists=True, path_type=Path))
 @click.argument("output_prefix", type=click.Path(path_type=Path))
 @click.option(
     "--pop-id",
@@ -194,23 +193,29 @@ def cmd_run_sscha(dyn_prefix, output_dir, nqirr, n_configs, max_pop, model_path)
     type=int,
     help="Number of irreducible q-points (auto-detected if omitted).",
 )
-def cmd_free_energy_hessian(data_dir, final_dyn_prefix, output_prefix, pop_id, nqirr):
+@click.option(
+    "--final-dyn-prefix",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Override the auto-detected final dyn prefix (normally not needed).",
+)
+def cmd_free_energy_hessian(sscha_dir, output_prefix, pop_id, nqirr, final_dyn_prefix):
     """Compute the free-energy Hessian from a completed SSCHA run.
 
-    DATA_DIR       directory holding the saved ensemble (dyn_gen_pop* files).
-    FINAL_DYN_PREFIX  prefix of the final_dyn* files produced by run-sscha.
-    OUTPUT_PREFIX  prefix for the output hessian dyn files.
+    SSCHA_DIR     output directory produced by run-sscha.  Must contain
+                  dyn_pop*_* (or final_dyn*) files and a data/ subdirectory.
+    OUTPUT_PREFIX prefix for the output hessian dyn files.
 
     Does not require a NequIP model.
     """
     from pdh_kitware.hessian.free_energy_hessian import free_energy_hessian
 
     result = free_energy_hessian(
-        data_dir,
-        final_dyn_prefix,
+        sscha_dir,
         output_prefix,
         pop_id=pop_id,
         nqirr=nqirr,
+        final_dyn_prefix=final_dyn_prefix,
     )
     click.echo(f"Hessian written with prefix {result}")
 
@@ -290,11 +295,7 @@ def cmd_fullrun(input_cif, output_prefix, work_dir, n_configs, max_pop, model_pa
     click.echo(f"      -> {sscha_dir}/")
 
     click.echo("[4/4] Computing free-energy Hessian...")
-    result = free_energy_hessian(
-        data_dir=sscha_dir / "data",
-        final_dyn_prefix=sscha_dir / "final_dyn",
-        output_prefix=output_prefix,
-    )
+    result = free_energy_hessian(sscha_dir, output_prefix)
     click.echo(f"      -> {result}*")
     click.echo("Pipeline complete.")
 
