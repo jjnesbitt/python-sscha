@@ -1,0 +1,29 @@
+services:
+  sscha:
+    build:
+      # Build context is the repo root so the Dockerfile can COPY the full source.
+      context: ..
+      dockerfile: docker/Dockerfile.conda
+    image: sscha-pipeline
+
+    # CIF files, dyn files, and any other run data live in docker/data/ on the
+    # host and are accessible at /workspace/data/ inside the container.
+    volumes:
+      - ./data:/workspace/data
+      # The compiled NequIP model is persisted here so it survives container
+      # restarts and only needs to be compiled once.
+      - ./nequip:/opt/nequip
+
+    working_dir: /workspace
+
+    environment:
+      - NEQUIP_MODEL_PATH=/opt/nequip/NequIP-OAM-XL.nequip.pt2
+
+    # GPU passthrough — requires the NVIDIA Container Toolkit on the host.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
